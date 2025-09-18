@@ -1,4 +1,27 @@
-// config/constants.ts
+export const MENU_ITEMS = [
+  // Медовики
+  { id: 1, name: "Медовик разнотравье", price: 189, category: "medoviki", emoji: "🍯" },
+  { id: 2, name: "Медовик гречишный", price: 199, category: "medoviki", emoji: "🌾" },
+  { id: 3, name: "Медовик каштановый", price: 229, category: "medoviki", emoji: "🌰" },
+  { id: 4, name: "Медовик с брусникой", price: 219, category: "medoviki", emoji: "🫐" },
+  { id: 5, name: "Медовик с алоэ", price: 229, category: "medoviki", emoji: "🌿" },
+  { id: 6, name: "Медовик манго-облепиха", price: 219, category: "medoviki", emoji: "🥭" },
+  { id: 7, name: "Медовик малина-фисташка", price: 259, category: "medoviki", emoji: "🍓" },
+  { id: 8, name: "Медовик Бейлис-чизкейк", price: 239, category: "medoviki", emoji: "🍦" },
+  { id: 9, name: "Медовик яблоко-грецкий орех", price: 229, category: "medoviki", emoji: "🍎" },
+  
+  // Торты и пирожные
+  { id: 10, name: "Наполеон с заварным кремом", price: 220, category: "cakes", emoji: "🍰" },
+  { id: 11, name: "Наполеон лесные ягоды", price: 240, category: "cakes", emoji: "🫐" },
+  { id: 12, name: "Картошка с амаретто", price: 90, category: "cakes", emoji: "🥔" },
+  { id: 13, name: "Сникерс", price: 135, category: "cakes", emoji: "🍫" },
+  { id: 14, name: "Маракуйя в молочном шоколаде", price: 230, category: "cakes", emoji: "🌺" },
+  { id: 15, name: "Шоколадный пирог-чизкейк с вишней", price: 195, category: "cakes", emoji: "🍒" },
+  { id: 16, name: "Меренговый рулет с малиной, фисташкой и маскарпоне", price: 280, category: "cakes", emoji: "🍓", unit: "100гр" },
+  
+  // Комплексные обеды
+  { id: 17, name: "Комплексный обед", price: 350, category: "lunch", emoji: "🥗" }
+];
 
 export const CONSTANTS = {
   BOT: {

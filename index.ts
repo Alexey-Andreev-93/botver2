@@ -8,7 +8,7 @@ import { Order } from "./models/Order";
 import { userStateService } from "./services/UserStateService";
 import { ValidationService } from "./services/ValidationService";
 import { Logger } from "./utils/logger";
-import { CONSTANTS } from "./config/constants";
+import { CONSTANTS, MENU_ITEMS } from "./config/constants";
 
 // Проверка токена бота
 const BOT_TOKEN = process.env.BOT_TOKEN || "";
@@ -20,11 +20,97 @@ if (BOT_TOKEN === "") {
 // Создание экземпляра бота
 const bot = new Telegraf(BOT_TOKEN);
 
+// Функция для форматирования меню
+function formatMenu() {
+  let menuText = "🍽 *МЕНЮ* 🍽\n\n";
+  
+  // Группируем товары по категориям
+  const categories: { [key: string]: any[] } = {};
+  MENU_ITEMS.forEach(item => {
+    if (!categories[item.category]) {
+      categories[item.category] = [];
+    }
+    categories[item.category].push(item);
+  });
+
+  // Добавляем медовики
+  menuText += "🍰 *МЕДОВИКИ* 🍯\n\n";
+  categories.medoviki.forEach(item => {
+    menuText += `${item.emoji} ${item.name} - ${item.price}₽\n`;
+  });
+
+  // Добавляем торты
+  menuText += "\n🎂 *ТОРТЫ И ПИРОЖНЫЕ* \n\n";
+  categories.cakes.forEach(item => {
+    const unit = item.unit ? `/${item.unit}` : '';
+    menuText += `${item.emoji} ${item.name} - ${item.price}₽${unit}\n`;
+  });
+
+  // Добавляем обеды
+  menuText += "\n🍽 *КОМПЛЕКСНЫЕ ОБЕДЫ* \n\n";
+  categories.lunch.forEach(item => {
+    menuText += `${item.emoji} ${item.name} - ${item.price}₽\n`;
+  });
+
+  menuText += "\n_Чтобы добавить в корзину, нажмите на кнопку с товаром_ 👇";
+  return menuText;
+}
+
+// Функция для создания клавиатуры меню
+function createMenuKeyboard() {
+  const keyboard = [];
+  
+  // Добавляем кнопки товаров
+  MENU_ITEMS.forEach(item => {
+    keyboard.push([{ 
+      text: `${item.emoji} ${item.name} - ${item.price}₽`, 
+      callback_data: `add_${item.id}` 
+    }]);
+  });
+  
+  // Добавляем кнопки управления
+  keyboard.push([{ text: "🛒 Корзина", callback_data: "view_cart" }]);
+  keyboard.push([{ text: "📋 Главное меню", callback_data: "main_menu" }]);
+
+  return keyboard;
+}
+
+// Функция для отображения корзины
+function showCart(ctx: any, userId: number) {
+  const state = userStateService.getState(userId);
+  const cart = state?.data.cart || [];
+  const total = userStateService.getCartTotal(userId);
+
+  if (cart.length === 0) {
+    ctx.reply("🛒 Ваша корзина пуста");
+    return;
+  }
+
+  let cartText = "🛒 *Ваша корзина:*\n\n";
+  cart.forEach((item, index) => {
+    cartText += `${index + 1}. ${item.emoji} ${item.name} - ${item.price}₽ x ${item.quantity} = ${item.price * item.quantity}₽\n`;
+  });
+  
+  cartText += `\n💵 *Итого: ${total}₽*`;
+
+  const keyboard = [
+    [{ text: "➕ Добавить еще", callback_data: "add_more" }],
+    [{ text: "✅ Оформить заказ", callback_data: "checkout" }],
+    [{ text: "🗑️ Очистить корзину", callback_data: "clear_cart" }],
+    [{ text: "📋 Вернуться к меню", callback_data: "back_to_menu" }]
+  ];
+
+  ctx.reply(cartText, {
+    parse_mode: "Markdown",
+    reply_markup: { inline_keyboard: keyboard }
+  });
+}
+
 // Обработка команды /start - главное меню
 bot.start((ctx) => {
   const menuKeyboard = {
     keyboard: [
-      ["📋 Меню", "🛒 Забронировать обед"],
+      ["📋 Меню", "🛒 Корзина"],
       ["📞 Контакты", "❓ Помощь"],
     ],
     resize_keyboard: true,
@@ -35,88 +121,25 @@ bot.start((ctx) => {
 });
 
 // Обработка кнопки "Меню"
-// Обработка кнопки "Меню"
 bot.hears("📋 Меню", (ctx) => {
-  const menuText = `
-🍰 *МЕДОВИКИ* 🍯
+  const menuText = formatMenu();
+  const keyboard = createMenuKeyboard();
 
-🍯 Медовик разнотравье \\- 189₽
-*Нежный торт с медом разнотравья*
-
-🌾 Медовик гречишный \\- 199₽ 
-*С насыщенным вкусом гречишного меда*
-
-🌰 Медовик каштановый \\- 229₽
-*С благородным каштановым медом*
-
-🫐 Медовик с брусникой \\- 219₽
-*Сладкий мед и кислинка брусники*
-
-🌿 Медовик с алоэ \\- 229₽
-*Освежающий с экстрактом алоэ*
-
-🥭 Медовик манго\\-облепиха \\- 219₽
-*Тропический микс манго и облепихи*
-
-🍓 Медовик малина\\-фисташка \\- 259₽
-*Нежная малина и хрустящая фисташка*
-
-🍦 Медовик Бейлис\\-чизкейк \\- 239₽
-*С изысканным вкусом Бейлиса*
-
-🍎 Медовик яблоко\\-грецкий орех \\- 229₽
-*Классическое сочетание с орехами*
-
-🎂 *ТОРТЫ И ПИРОЖНЫЕ* 
-
-🍰 Наполеон с заварным кремом \\- 220₽
-*Классический с нежным заварным кремом*
-
-🫐 Наполеон лесные ягоды \\- 240₽
-*С свежими лесными ягодами*
-
-🥔 Картошка с амаретто \\- 90₽
-*Шоколадное пирожное с амаретто*
-
-🍫 Сникерс \\- 135₽
-*Арахис, нуга, карамель и шоколад*
-
-🌺 Маракуйя в молочном шоколаде \\- 230₽
-*Экзотическая маракуйя в шоколаде*
-
-🍒 Шоколадный пирог\\-чизкейк с вишней \\- 195₽
-*Шоколадный чискейк с вишневой начинкой*
-
-🍓 Меренговый рулет с малиной, фисташкой и маскарпоне \\- 280₽/100гр
-*Воздушный рулет с нежной начинкой*
-
-🍽 *КОМПЛЕКСНЫЕ ОБЕДЫ*
-
-🥗 Комплексный обед \\- 350₽
-*Суп \\+ салат \\+ основное блюдо \\+ хлеб*
-
-☕ *НАПИТКИ* \\(добавятся скоро\\!\\)
-
-_Чтобы забронировать, нажмите_ 👇
-`;
-
-  ctx.replyWithMarkdownV2(menuText);
+  ctx.reply(menuText, {
+    parse_mode: "Markdown",
+    reply_markup: {
+      inline_keyboard: keyboard
+    }
+  });
   Logger.debug(`Пользователь ${ctx.from?.id} запросил меню`);
 });
 
-// Обрабатываем кнопку "Забронировать обед"
-bot.hears("🛒 Забронировать обед", (ctx) => {
+// Обработка кнопки "Корзина"
+bot.hears("🛒 Корзина", (ctx) => {
   const userId = ctx.from?.id;
   if (!userId) return;
 
-  // Сохраняем состояние пользователя
-  userStateService.setState(userId, {
-    state: "awaiting_name",
-    data: {},
-  });
-
-  ctx.reply("Отлично! Для бронирования обеда, пожалуйста, напишите ваше имя:");
-  Logger.info(`Пользователь ${userId} начал процесс бронирования`);
+  showCart(ctx, userId);
 });
 
 // Обработка кнопки "Контакты"
@@ -137,7 +160,7 @@ bot.hears("❓ Помощь", (ctx) => {
 
 Вот что я умею:
 • Показывать актуальное меню 🍽
-• Принимать бронирования обедов 🛒
+• Принимать заказы с выбором блюд 🛒
 • Сообщать контакты и адрес 📞
 
 Просто нажимайте на кнопки внизу экрана!
@@ -155,18 +178,16 @@ bot.command("id", (ctx) => {
 // Админ-команда для просмотра заказов
 bot.command("orders", async (ctx) => {
   const userId = ctx.from?.id;
-
+  
   if (userId !== CONSTANTS.BOT.ADMIN_ID) {
-    Logger.warn(
-      `Пользователь ${userId} попытался получить доступ к админ-команде`
-    );
+    Logger.warn(`Пользователь ${userId} попытался получить доступ к админ-команде`);
     return ctx.reply(CONSTANTS.MESSAGES.NO_ACCESS);
   }
 
   try {
     const orders = await Order.findAll({
-      order: [["created_at", "DESC"]],
-      limit: 10,
+      order: [['created_at', 'DESC']],
+      limit: 10
     });
 
     if (orders.length === 0) {
@@ -175,45 +196,161 @@ bot.command("orders", async (ctx) => {
     }
 
     let ordersText = "📋 Последние заказы:\n\n";
-
-    orders.forEach((order) => {
+    
+    orders.forEach(order => {
       ordersText += `#${order.id} • ${order.user_name}\n`;
-      ordersText += `📞 ${order.user_phone || "не указан"}\n`;
+      ordersText += `📞 ${order.user_phone || 'не указан'}\n`;
       ordersText += `🍽 ${order.items}\n`;
       ordersText += `💰 ${order.total_amount} руб.\n`;
       ordersText += `📊 Статус: ${order.status}\n`;
-      ordersText += `🕒 ${order.created_at.toLocaleString("ru-RU")}\n`;
+      ordersText += `🕒 ${order.created_at.toLocaleString('ru-RU')}\n`;
       ordersText += "━━━━━━━━━━━━━━━━\n";
     });
 
-    // Разбиваем сообщение если слишком длинное
     if (ordersText.length > 4000) {
-      ordersText =
-        ordersText.substring(0, 4000) + "\n... (показаны первые 4000 символов)";
+      ordersText = ordersText.substring(0, 4000) + "\n... (показаны первые 4000 символов)";
     }
-
+    
     ctx.reply(ordersText);
     Logger.info(`Админ просмотрел ${orders.length} заказов`);
+    
   } catch (error) {
     Logger.error("Ошибка получения заказов:", error);
     ctx.reply(CONSTANTS.MESSAGES.ORDERS_ERROR);
   }
 });
 
-// Обработка ввода имени для бронирования
+// Обработка callback-кнопок
+bot.action(/add_(\d+)/, async (ctx) => {
+  const userId = ctx.from?.id;
+  if (!userId) return;
+
+  const itemId = parseInt(ctx.match[1]);
+  const menuItem = MENU_ITEMS.find(item => item.id === itemId);
+  
+  if (!menuItem) {
+    ctx.answerCbQuery("Товар не найден");
+    return;
+  }
+
+  // Добавляем в корзину
+  userStateService.addToCart(userId, {
+    id: menuItem.id,
+    name: menuItem.name,
+    price: menuItem.price,
+    quantity: 1,
+    emoji: menuItem.emoji
+  });
+
+  ctx.answerCbQuery(`✅ ${menuItem.emoji} ${menuItem.name} добавлен в корзину!`);
+  Logger.info(`Пользователь ${userId} добавил в корзину: ${menuItem.name}`);
+});
+
+// Просмотр корзины
+bot.action("view_cart", async (ctx) => {
+  const userId = ctx.from?.id;
+  if (!userId) return;
+
+  ctx.answerCbQuery();
+  showCart(ctx, userId);
+});
+
+// Оформление заказа
+bot.action("checkout", async (ctx) => {
+  const userId = ctx.from?.id;
+  if (!userId) return;
+
+  const state = userStateService.getState(userId);
+  if (!state || state.data.cart.length === 0) {
+    ctx.answerCbQuery("Корзина пуста");
+    return;
+  }
+
+  userStateService.updateState(userId, { 
+    state: "awaiting_name", 
+    data: { ...state.data } 
+  });
+
+  ctx.editMessageText("Отлично! Для оформления заказа, пожалуйста, напишите ваше имя:");
+  Logger.info(`Пользователь ${userId} начал оформление заказа`);
+});
+
+// Очистка корзины
+bot.action("clear_cart", async (ctx) => {
+  const userId = ctx.from?.id;
+  if (!userId) return;
+
+  userStateService.clearCart(userId);
+  ctx.answerCbQuery("🗑️ Корзина очищена");
+  ctx.deleteMessage();
+  Logger.info(`Пользователь ${userId} очистил корзину`);
+});
+
+// Добавить еще товаров
+bot.action("add_more", async (ctx) => {
+  const userId = ctx.from?.id;
+  if (!userId) return;
+
+  ctx.deleteMessage();
+  const menuText = formatMenu();
+  const keyboard = createMenuKeyboard();
+
+  ctx.reply(menuText, {
+    parse_mode: "Markdown",
+    reply_markup: {
+      inline_keyboard: keyboard
+    }
+  });
+});
+
+// Вернуться к меню
+bot.action("back_to_menu", async (ctx) => {
+  const userId = ctx.from?.id;
+  if (!userId) return;
+
+  ctx.deleteMessage();
+  const menuText = formatMenu();
+  const keyboard = createMenuKeyboard();
+
+  ctx.reply(menuText, {
+    parse_mode: "Markdown",
+    reply_markup: {
+      inline_keyboard: keyboard
+    }
+  });
+});
+
+// Главное меню
+bot.action("main_menu", async (ctx) => {
+  const userId = ctx.from?.id;
+  if (!userId) return;
+
+  ctx.deleteMessage();
+  const menuKeyboard = {
+    keyboard: [
+      ["📋 Меню", "🛒 Корзина"],
+      ["📞 Контакты", "❓ Помощь"],
+    ],
+    resize_keyboard: true,
+  };
+
+  ctx.reply("Главное меню:", { reply_markup: menuKeyboard });
+});
+
+// Обработка ввода текста (для оформления заказа)
 bot.on("text", async (ctx) => {
   const userId = ctx.from?.id;
   const messageText = ctx.message.text;
 
   if (!userId) return;
 
-  // Игнорируем команды (они начинаются с /)
-  if (messageText.startsWith("/")) {
+  // Игнорируем команды
+  if (messageText.startsWith('/')) {
     return;
   }
 
-  // Игнорируем кнопки
-  if (CONSTANTS.BOT.IGNORED_TEXTS.includes(messageText)) {
+  // Игнорируем кнопки главного меню
+  if (["📋 Меню", "🛒 Корзина", "📞 Контакты", "❓ Помощь"].includes(messageText)) {
     return;
   }
 
@@ -230,11 +367,12 @@ bot.on("text", async (ctx) => {
     // Сохраняем имя и запрашиваем телефон
     userStateService.updateState(userId, {
       state: "awaiting_phone",
-      data: { name: messageText.trim() },
+      data: { ...userState.data, name: messageText.trim() }
     });
 
     ctx.reply("Спасибо! Теперь укажите ваш телефон для связи:");
     Logger.info(`Пользователь ${userId} ввел имя: ${messageText}`);
+
   } else if (userState?.state === "awaiting_phone") {
     // Валидация телефона
     const validation = ValidationService.isValidPhone(messageText);
@@ -251,21 +389,23 @@ bot.on("text", async (ctx) => {
         user_id: userId,
         user_name: userState.data.name!,
         user_phone: formattedPhone,
-        items: CONSTANTS.ORDER.DEFAULT_ITEMS,
-        total_amount: CONSTANTS.ORDER.DEFAULT_AMOUNT,
+        items: userState.data.cart.map(item => 
+          `${item.emoji} ${item.name} x${item.quantity}`
+        ).join(", "),
+        total_amount: userStateService.getCartTotal(userId),
         status: CONSTANTS.ORDER.STATUS.NEW,
       });
 
-      // Очищаем состояние пользователя
+      // Очищаем состояние пользователя и корзину
       userStateService.clearState(userId);
+      userStateService.clearCart(userId);
 
       ctx.reply(
-        `🎉 *Спасибо, ${userState.data.name}!*\n\nВаш заказ #${order.id} принят! 📋\nМы свяжемся с вами по телефону ${formattedPhone} для подтверждения 📞\n\n_Сумма к оплате: ${order.total_amount}₽_`
+        `🎉 Спасибо, ${userState.data.name}!\n\nВаш заказ #${order.id} принят! 📋\nМы свяжемся с вами по телефону ${formattedPhone} для подтверждения 📞\n\nСумма к оплате: ${order.total_amount}₽`
       );
 
-      Logger.success(
-        `Новый заказ #${order.id} от ${userState.data.name} (${userId})`
-      );
+      Logger.success(`Новый заказ #${order.id} от ${userState.data.name} (${userId}) на сумму ${order.total_amount}₽`);
+      
     } catch (error) {
       Logger.error("Ошибка создания заказа:", error);
       ctx.reply(CONSTANTS.MESSAGES.ORDER_ERROR);
@@ -292,13 +432,14 @@ async function startBot() {
     // Затем запускаем бота
     await bot.launch();
     Logger.success("Бот успешно запущен!");
-
+    
     console.log("\n📋 Доступные команды:");
     console.log("• /start - Главное меню");
     console.log("• /id - Узнать свой Telegram ID");
     console.log("• /orders - Просмотр заказов (только для админа)");
     console.log("\n✅ Все функции доступны через кнопки");
     console.log("✅ Ожидаем сообщения от пользователей...");
+    
   } catch (error) {
     Logger.error("Ошибка запуска бота:", error);
     process.exit(1);
