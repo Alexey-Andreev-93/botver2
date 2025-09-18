@@ -7,10 +7,12 @@ import { initDatabase } from "./database";
 import { Order } from "./models/Order";
 import { userStateService } from "./services/UserStateService";
 import { ValidationService } from "./services/ValidationService";
+import { MenuService } from "./services/MenuService";
 import { Logger } from "./utils/logger";
-import { CONSTANTS, MENU_ITEMS } from "./config/constants";
+import { CONSTANTS } from "./config/constants";
 
 // Проверка токена бота
+
 const BOT_TOKEN = process.env.BOT_TOKEN || "";
 if (BOT_TOKEN === "") {
   Logger.error("Переменная окружения BOT_TOKEN не задана!");
@@ -19,61 +21,6 @@ if (BOT_TOKEN === "") {
 
 // Создание экземпляра бота
 const bot = new Telegraf(BOT_TOKEN);
-
-// Функция для форматирования меню
-function formatMenu() {
-  let menuText = "🍽 *МЕНЮ* 🍽\n\n";
-  
-  // Группируем товары по категориям
-  const categories: { [key: string]: any[] } = {};
-  MENU_ITEMS.forEach(item => {
-    if (!categories[item.category]) {
-      categories[item.category] = [];
-    }
-    categories[item.category].push(item);
-  });
-
-  // Добавляем медовики
-  menuText += "🍰 *МЕДОВИКИ* 🍯\n\n";
-  categories.medoviki.forEach(item => {
-    menuText += `${item.emoji} ${item.name} - ${item.price}₽\n`;
-  });
-
-  // Добавляем торты
-  menuText += "\n🎂 *ТОРТЫ И ПИРОЖНЫЕ* \n\n";
-  categories.cakes.forEach(item => {
-    const unit = item.unit ? `/${item.unit}` : '';
-    menuText += `${item.emoji} ${item.name} - ${item.price}₽${unit}\n`;
-  });
-
-  // Добавляем обеды
-  menuText += "\n🍽 *КОМПЛЕКСНЫЕ ОБЕДЫ* \n\n";
-  categories.lunch.forEach(item => {
-    menuText += `${item.emoji} ${item.name} - ${item.price}₽\n`;
-  });
-
-  menuText += "\n_Чтобы добавить в корзину, нажмите на кнопку с товаром_ 👇";
-  return menuText;
-}
-
-// Функция для создания клавиатуры меню
-function createMenuKeyboard() {
-  const keyboard = [];
-  
-  // Добавляем кнопки товаров
-  MENU_ITEMS.forEach(item => {
-    keyboard.push([{ 
-      text: `${item.emoji} ${item.name} - ${item.price}₽`, 
-      callback_data: `add_${item.id}` 
-    }]);
-  });
-  
-  // Добавляем кнопки управления
-  keyboard.push([{ text: "🛒 Корзина", callback_data: "view_cart" }]);
-  keyboard.push([{ text: "📋 Главное меню", callback_data: "main_menu" }]);
-
-  return keyboard;
-}
 
 // Функция для отображения корзины
 function showCart(ctx: any, userId: number) {
@@ -88,21 +35,23 @@ function showCart(ctx: any, userId: number) {
 
   let cartText = "🛒 *Ваша корзина:*\n\n";
   cart.forEach((item, index) => {
-    cartText += `${index + 1}. ${item.emoji} ${item.name} - ${item.price}₽ x ${item.quantity} = ${item.price * item.quantity}₽\n`;
+    cartText += `${index + 1}. ${item.emoji} ${item.name} - ${item.price}₽ x ${
+      item.quantity
+    } = ${item.price * item.quantity}₽\n`;
   });
-  
+
   cartText += `\n💵 *Итого: ${total}₽*`;
 
   const keyboard = [
-    [{ text: "➕ Добавить еще", callback_data: "add_more" }],
+    [{ text: "➕ Добавить еще товаров", callback_data: "add_more" }],
     [{ text: "✅ Оформить заказ", callback_data: "checkout" }],
     [{ text: "🗑️ Очистить корзину", callback_data: "clear_cart" }],
-    [{ text: "📋 Вернуться к меню", callback_data: "back_to_menu" }]
+    [{ text: "📋 Вернуться к меню", callback_data: "back_to_menu" }],
   ];
 
   ctx.reply(cartText, {
     parse_mode: "Markdown",
-    reply_markup: { inline_keyboard: keyboard }
+    reply_markup: { inline_keyboard: keyboard },
   });
 }
 
@@ -116,22 +65,28 @@ bot.start((ctx) => {
     resize_keyboard: true,
   };
 
-  ctx.reply(CONSTANTS.MESSAGES.WELCOME, { reply_markup: menuKeyboard });
+  ctx.reply("Добро пожаловать в наше уютное кафе! 🍰☕\nВыберите действие:", {
+    reply_markup: menuKeyboard,
+  });
   Logger.info(`Пользователь ${ctx.from?.id} запустил бота`);
 });
 
 // Обработка кнопки "Меню"
 bot.hears("📋 Меню", (ctx) => {
-  const menuText = formatMenu();
-  const keyboard = createMenuKeyboard();
+  const keyboard = MenuService.createMenuKeyboard();
 
-  ctx.reply(menuText, {
+  ctx.reply("🍽 *Меню нашего кафе:*", {
     parse_mode: "Markdown",
     reply_markup: {
       inline_keyboard: keyboard
     }
   });
-  Logger.debug(`Пользователь ${ctx.from?.id} запросил меню`);
+  Logger.debug(`Пользователь ${ctx.from?.id} открыл меню`);
+});
+
+// Игнорируем клики по заголовкам и ненужным кнопкам
+bot.action("ignore", (ctx) => {
+  ctx.answerCbQuery(""); // Просто пустой ответ
 });
 
 // Обработка кнопки "Корзина"
@@ -146,9 +101,9 @@ bot.hears("🛒 Корзина", (ctx) => {
 bot.hears("📞 Контакты", (ctx) => {
   const contactText = `
 📍 Наш адрес: Улица Пушкина, дом Колотушкина
-🕒 Часы работы: 9:00 - 21:00 без выходных
-📱 Телефон: +7 (XXX) XXX-XX-XX
-🌐 Сайт: cafe-sweet-bake.ru
+🕒 Часы работы: 08:00-20:00🧸
+📱 Телефон: +7 962 715 9858
+🌐 Группа в Телеграме: https://t.me/kofemedovik
   `;
   ctx.reply(contactText);
 });
@@ -156,14 +111,14 @@ bot.hears("📞 Контакты", (ctx) => {
 // Обработка кнопки "Помощь"
 bot.hears("❓ Помощь", (ctx) => {
   const helpText = `
-Я бот-помощник кафе "Sweet Bake"!
+Я бот-помощник кафе "Медовик"!
 
 Вот что я умею:
-• Показывать актуальное меню 🍽
-• Принимать заказы с выбором блюд 🛒
+• Показывать меню с выбором блюд 🍽
+• Принимать заказы с корзиной товаров 🛒
 • Сообщать контакты и адрес 📞
 
-Просто нажимайте на кнопки внизу экрана!
+Просто нажимайте на кнопки!
   `;
   ctx.reply(helpText);
 });
@@ -176,18 +131,21 @@ bot.command("id", (ctx) => {
 });
 
 // Админ-команда для просмотра заказов
+
 bot.command("orders", async (ctx) => {
   const userId = ctx.from?.id;
-  
+
   if (userId !== CONSTANTS.BOT.ADMIN_ID) {
-    Logger.warn(`Пользователь ${userId} попытался получить доступ к админ-команде`);
+    Logger.warn(
+      `Пользователь ${userId} попытался получить доступ к админ-команде`
+    );
     return ctx.reply(CONSTANTS.MESSAGES.NO_ACCESS);
   }
 
   try {
     const orders = await Order.findAll({
-      order: [['created_at', 'DESC']],
-      limit: 10
+      order: [["created_at", "DESC"]],
+      limit: 10,
     });
 
     if (orders.length === 0) {
@@ -196,38 +154,38 @@ bot.command("orders", async (ctx) => {
     }
 
     let ordersText = "📋 Последние заказы:\n\n";
-    
-    orders.forEach(order => {
+
+    orders.forEach((order) => {
       ordersText += `#${order.id} • ${order.user_name}\n`;
-      ordersText += `📞 ${order.user_phone || 'не указан'}\n`;
+      ordersText += `📞 ${order.user_phone || "не указан"}\n`;
       ordersText += `🍽 ${order.items}\n`;
       ordersText += `💰 ${order.total_amount} руб.\n`;
       ordersText += `📊 Статус: ${order.status}\n`;
-      ordersText += `🕒 ${order.created_at.toLocaleString('ru-RU')}\n`;
+      ordersText += `🕒 ${order.created_at.toLocaleString("ru-RU")}\n`;
       ordersText += "━━━━━━━━━━━━━━━━\n";
     });
 
     if (ordersText.length > 4000) {
-      ordersText = ordersText.substring(0, 4000) + "\n... (показаны первые 4000 символов)";
+      ordersText =
+        ordersText.substring(0, 4000) + "\n... (показаны первые 4000 символов)";
     }
-    
+
     ctx.reply(ordersText);
     Logger.info(`Админ просмотрел ${orders.length} заказов`);
-    
   } catch (error) {
     Logger.error("Ошибка получения заказов:", error);
     ctx.reply(CONSTANTS.MESSAGES.ORDERS_ERROR);
   }
 });
 
-// Обработка callback-кнопок
+// Обработка callback-кнопок товаров
 bot.action(/add_(\d+)/, async (ctx) => {
   const userId = ctx.from?.id;
   if (!userId) return;
 
   const itemId = parseInt(ctx.match[1]);
-  const menuItem = MENU_ITEMS.find(item => item.id === itemId);
-  
+  const menuItem = MenuService.getMenuItem(itemId);
+
   if (!menuItem) {
     ctx.answerCbQuery("Товар не найден");
     return;
@@ -239,10 +197,12 @@ bot.action(/add_(\d+)/, async (ctx) => {
     name: menuItem.name,
     price: menuItem.price,
     quantity: 1,
-    emoji: menuItem.emoji
+    emoji: menuItem.emoji,
   });
 
-  ctx.answerCbQuery(`✅ ${menuItem.emoji} ${menuItem.name} добавлен в корзину!`);
+  ctx.answerCbQuery(
+    `✅ ${menuItem.emoji} ${menuItem.name} добавлен в корзину!`
+  );
   Logger.info(`Пользователь ${userId} добавил в корзину: ${menuItem.name}`);
 });
 
@@ -266,12 +226,14 @@ bot.action("checkout", async (ctx) => {
     return;
   }
 
-  userStateService.updateState(userId, { 
-    state: "awaiting_name", 
-    data: { ...state.data } 
+  userStateService.updateState(userId, {
+    state: "awaiting_name",
+    data: { ...state.data },
   });
 
-  ctx.editMessageText("Отлично! Для оформления заказа, пожалуйста, напишите ваше имя:");
+  ctx.editMessageText(
+    "Отлично! Для оформления заказа, пожалуйста, напишите ваше имя:"
+  );
   Logger.info(`Пользователь ${userId} начал оформление заказа`);
 });
 
@@ -292,14 +254,13 @@ bot.action("add_more", async (ctx) => {
   if (!userId) return;
 
   ctx.deleteMessage();
-  const menuText = formatMenu();
-  const keyboard = createMenuKeyboard();
+  const keyboard = MenuService.createMenuKeyboard();
 
-  ctx.reply(menuText, {
+  ctx.reply("🍽 *Выберите товар из меню:*", {
     parse_mode: "Markdown",
     reply_markup: {
-      inline_keyboard: keyboard
-    }
+      inline_keyboard: keyboard,
+    },
   });
 });
 
@@ -309,32 +270,36 @@ bot.action("back_to_menu", async (ctx) => {
   if (!userId) return;
 
   ctx.deleteMessage();
-  const menuText = formatMenu();
-  const keyboard = createMenuKeyboard();
+  const keyboard = MenuService.createMenuKeyboard();
 
-  ctx.reply(menuText, {
+  ctx.reply("🍽 *Выберите товар из меню:*", {
     parse_mode: "Markdown",
     reply_markup: {
-      inline_keyboard: keyboard
-    }
+      inline_keyboard: keyboard,
+    },
   });
 });
 
-// Главное меню
-bot.action("main_menu", async (ctx) => {
-  const userId = ctx.from?.id;
-  if (!userId) return;
+// // Главное меню
+// bot.action("main_menu", async (ctx) => {
+//   const userId = ctx.from?.id;
+//   if (!userId) return;
 
-  ctx.deleteMessage();
-  const menuKeyboard = {
-    keyboard: [
-      ["📋 Меню", "🛒 Корзина"],
-      ["📞 Контакты", "❓ Помощь"],
-    ],
-    resize_keyboard: true,
-  };
+//   ctx.deleteMessage();
+//   const menuKeyboard = {
+//     keyboard: [
+//       ["📋 Меню", "🛒 Корзина"],
+//       ["📞 Контакты", "❓ Помощь"],
+//     ],
+//     resize_keyboard: true,
+//   };
 
-  ctx.reply("Главное меню:", { reply_markup: menuKeyboard });
+//   ctx.reply("Главное меню:", { reply_markup: menuKeyboard });
+// });
+
+// Игнорируем клики по заголовкам категорий
+bot.action("ignore_category", (ctx) => {
+  ctx.answerCbQuery(""); // Просто пустой ответ
 });
 
 // Обработка ввода текста (для оформления заказа)
@@ -345,12 +310,14 @@ bot.on("text", async (ctx) => {
   if (!userId) return;
 
   // Игнорируем команды
-  if (messageText.startsWith('/')) {
+  if (messageText.startsWith("/")) {
     return;
   }
 
   // Игнорируем кнопки главного меню
-  if (["📋 Меню", "🛒 Корзина", "📞 Контакты", "❓ Помощь"].includes(messageText)) {
+  if (
+    ["📋 Меню", "🛒 Корзина", "📞 Контакты", "❓ Помощь"].includes(messageText)
+  ) {
     return;
   }
 
@@ -367,12 +334,11 @@ bot.on("text", async (ctx) => {
     // Сохраняем имя и запрашиваем телефон
     userStateService.updateState(userId, {
       state: "awaiting_phone",
-      data: { ...userState.data, name: messageText.trim() }
+      data: { ...userState.data, name: messageText.trim() },
     });
 
     ctx.reply("Спасибо! Теперь укажите ваш телефон для связи:");
     Logger.info(`Пользователь ${userId} ввел имя: ${messageText}`);
-
   } else if (userState?.state === "awaiting_phone") {
     // Валидация телефона
     const validation = ValidationService.isValidPhone(messageText);
@@ -389,9 +355,9 @@ bot.on("text", async (ctx) => {
         user_id: userId,
         user_name: userState.data.name!,
         user_phone: formattedPhone,
-        items: userState.data.cart.map(item => 
-          `${item.emoji} ${item.name} x${item.quantity}`
-        ).join(", "),
+        items: userState.data.cart
+          .map((item) => `${item.emoji} ${item.name} x${item.quantity}`)
+          .join(", "),
         total_amount: userStateService.getCartTotal(userId),
         status: CONSTANTS.ORDER.STATUS.NEW,
       });
@@ -404,8 +370,9 @@ bot.on("text", async (ctx) => {
         `🎉 Спасибо, ${userState.data.name}!\n\nВаш заказ #${order.id} принят! 📋\nМы свяжемся с вами по телефону ${formattedPhone} для подтверждения 📞\n\nСумма к оплате: ${order.total_amount}₽`
       );
 
-      Logger.success(`Новый заказ #${order.id} от ${userState.data.name} (${userId}) на сумму ${order.total_amount}₽`);
-      
+      Logger.success(
+        `Новый заказ #${order.id} от ${userState.data.name} (${userId}) на сумму ${order.total_amount}₽`
+      );
     } catch (error) {
       Logger.error("Ошибка создания заказа:", error);
       ctx.reply(CONSTANTS.MESSAGES.ORDER_ERROR);
@@ -432,14 +399,13 @@ async function startBot() {
     // Затем запускаем бота
     await bot.launch();
     Logger.success("Бот успешно запущен!");
-    
+
     console.log("\n📋 Доступные команды:");
     console.log("• /start - Главное меню");
     console.log("• /id - Узнать свой Telegram ID");
     console.log("• /orders - Просмотр заказов (только для админа)");
     console.log("\n✅ Все функции доступны через кнопки");
     console.log("✅ Ожидаем сообщения от пользователей...");
-    
   } catch (error) {
     Logger.error("Ошибка запуска бота:", error);
     process.exit(1);
